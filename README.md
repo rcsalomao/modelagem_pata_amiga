@@ -95,6 +95,12 @@ Desta forma tem-se a presença das seguintes tabelas no banco de dados:
 
 ### Dimensões da modelagem e transformação
 
+A modelagem do dataset é realizada por meio da tabela fato dos pedidos ('fato_pedido'), ligada por meio de chaves substitutas ('surrogate keys') à dimensões relevantes.
+Para o projeto em questão, as dimensões de importância são as de tempo ('dim_tempo'), categoria ('dim_categoria'), loja ('dim_loja') e praça ('dim_praca').
+Para representar a relação N:N entre as lojas e praça, ligam-se estas dimensões por meio de uma tabela ponte ('bridge_loja_praca').
+No conjunto, tem-se a tabela fato no centro, conectada às dimensões tempo, categoria e loja.
+Já a dimensão praça está conectada exclusivamente à dimensão loja por meio da tabela ponte 'bridge_loja_praca'.
+
 A construção de parte das dimensões já consolidada da modelagem e respectiva carga é feita pelo arquivo '02-dimensoes-prontas.sql'.
 Tais dimensões são as 'dim_tempo' e 'dim_loja'.
 
