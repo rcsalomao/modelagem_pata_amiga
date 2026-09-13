@@ -49,6 +49,70 @@ USE dw_pata_amiga;
 --  * os lags em dias: DATEDIFF(<fim>, <inicio>). Etapa nao cumprida grava NULL,
 --    nunca 0. Use DATE() em volta da integracao (ela tem hora).
 
+delete from fato_pedido;
+alter table fato_pedido auto_increment = 1;
+insert into fato_pedido (
+	`numero_pedido`,
+	`sk_tempo_pedido`,
+	`sk_tempo_entrega`,
+	`sk_loja`,
+	`sk_categoria`,
+	`houve_desconto`,
+	`canal_pedido`,
+	`dt_pedido`,
+	`qt_itens`,
+	`vl_liquido`,
+	`dias_integracao_separacao`,
+	`dias_separacao_nota`,
+	`dias_nota_despacho`,
+	`dias_despacho_entrega`,
+	`dias_total_ate_entrega`
+)
+select
+    p.NumeroPedido as numero_pedido,
+    cast(date_format(str_to_date(p.DtHoraPedido, '%m/%d/%Y %h:%i %p'), '%Y%m%d') as signed) as sk_tempo_pedido,
+    if(p.DtEntregaCliente = '', -1, cast(date_format(date(p.DtEntregaCliente), '%Y%m%d') as signed)) as sk_tempo_entrega,
+    dl.sk_loja,
+    dc.sk_categoria,
+    case
+        when upper(trim(p.HouveDesconto)) in ('S', 'SIM', '1', 'X', 'TRUE', 'V') then 'Sim'
+        when upper(trim(p.HouveDesconto)) in ('N', 'NAO', '0', 'FALSE', 'F') then 'Nao'
+        else 'Nao Informado'
+    end as houve_desconto,
+    case
+        when upper(trim(p.CanalPedido)) like '%WHATS%' then 'WhatsApp'
+        when upper(trim(p.CanalPedido)) like '%APP%' then 'App'
+        when upper(trim(p.CanalPedido)) like '%SITE%' then 'Site'
+        when upper(trim(p.CanalPedido)) like '%LOJA%' then 'Loja Fisica'
+        when upper(trim(p.CanalPedido)) like '%TEL%' then 'Telefone'
+        else 'Nao Informado'
+    end as canal_pedido,
+    str_to_date(p.DtHoraPedido, '%m/%d/%Y %h:%i %p') as dt_pedido,
+    cast(nullif(nullif(p.`QTD.Itens`, '-'), '') as signed) as qt_itens,
+    case
+        when trim(replace(p.`ValorLiquidoPedido(R$)`,'R$','')) in ('','-') then null
+        when p.`ValorLiquidoPedido(R$)` like '%,%' then cast(replace(replace(replace(replace(p.`ValorLiquidoPedido(R$)`,'R$',''),' ',''),'.',''),',','.') as decimal(15,2))
+        else cast(replace(replace(p.`ValorLiquidoPedido(R$)`,'R$',''),' ','') as decimal(15,2))
+    end as vl_liquido,
+    datediff(if(p.`Dt Separacao Estoque` = '', null, date(p.`Dt Separacao Estoque`)), str_to_date(p.DtHoraIntegracaoERP, '%m/%d/%Y %h:%i %p')) as dias_integracao_separacao,
+    datediff(if(p.DtNotaFiscal = '', null, date(p.DtNotaFiscal)), if(p.`Dt Separacao Estoque` = '', null, date(p.`Dt Separacao Estoque`))) as dias_separacao_nota,
+    datediff(if(p.Dt_Despacho_Transportadora = '', null, date(p.Dt_Despacho_Transportadora)), if(p.DtNotaFiscal = '', null, date(p.DtNotaFiscal))) as dias_nota_despacho,
+    datediff(if(p.DtEntregaCliente = '', null, date(p.DtEntregaCliente)), if(p.Dt_Despacho_Transportadora = '', null, date(p.Dt_Despacho_Transportadora))) as dias_despacho_entrega,
+    datediff(if(p.DtEntregaCliente = '', null, date(p.DtEntregaCliente)), str_to_date(p.DtHoraPedido, '%m/%d/%Y %h:%i %p')) as dias_total_ate_entrega
+from stg_pedido p
+left join dim_loja dl
+on
+    case
+        when upper(p.`Loja-Nome`) like '%BLUMENAL%' then replace(trim(replace(replace(upper(p.`Loja-Nome`), '/SC', ''), '  ', ' ')), 'BLUMENAL', 'BLUMENAU')
+        when upper(p.`Loja-Nome`) like '%FLORIPA%' then replace(trim(replace(replace(upper(p.`Loja-Nome`), '/SC', ''), '  ', ' ')), 'FLORIPA', 'FLORIANOPOLIS')
+        when upper(p.`Loja-Nome`) like '%JGUA%' then replace(trim(replace(replace(upper(p.`Loja-Nome`), '/SC', ''), '  ', ' ')), 'JGUA', 'JARAGUA')
+        when p.`Loja-Nome` = '' then 'NAO INFORMADO'
+        else trim(replace(replace(upper(p.`Loja-Nome`), '/SC', ''), '  ', ' '))
+    end = dl.chave_loja
+left join dim_categoria dc
+on dc.categoria_origem = p.`CategoriaProduto`;
+
+
 -- =====================================================================================
 --  Confira o resultado com o 00-conferencia.sql (bloco "DEPOIS DO 04").
 -- =====================================================================================
